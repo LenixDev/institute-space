@@ -25,7 +25,18 @@ if ($view === 'tables' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acti
 	exit;
 }
 
-if ($view === 'columns' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($view === 'columns' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'new_row') {
+	$pdo = new PDO('mysql:host=localhost;dbname=' . $db, 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+	$data = $_POST['row'];
+	$cols = implode(', ', array_map(fn($c) => "`$c`", array_keys($data)));
+	$placeholders = implode(', ', array_map(fn($c) => ":$c", array_keys($data)));
+	$stmt = $pdo->prepare("INSERT INTO `$table` ($cols) VALUES ($placeholders)");
+	$stmt->execute($data);
+	header('Location: ?view=columns&db=' . $db . '&table=' . $table);
+	exit;
+}
+
+if ($view === 'columns' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_column') {
 	$pdo = new PDO('mysql:host=localhost;dbname=' . $db, 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 	$pdo->exec("ALTER TABLE `$table` ADD `" . $_POST['column_name'] . "` " . $_POST['column_type']);
 	header('Location: ?view=columns&db=' . $db . '&table=' . $table);
@@ -112,8 +123,17 @@ $ignoredDBs = ['information_schema', 'mysql', 'performance_schema', 'phpmyadmin'
 				<option value="TEXT">TEXT</option>
 				<option value="BOOLEAN">BOOLEAN</option>
 			</select>
-			<button type="submit">add column</button>
+			<button type="submit" name="action" value="add_column">add column</button>
 		</form>
+		
+		<form method="POST">
+			<?php foreach ($columns as $col): ?>
+					<?php if ($col['Field'] === 'created_at') continue ?>
+					<input type="text" name="row[<?= $col['Field'] ?>]" placeholder="<?= $col['Field'] ?>">
+			<?php endforeach ?>
+			<button type="submit" name="action" value="new_row">add row</button>
+		</form>
+
 		<a href="?view=tables&db=<?= $db ?>">back</a>
 
 	<?php endif ?>
