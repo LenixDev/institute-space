@@ -11,7 +11,7 @@ if ($view === 'dbs' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	exit;
 }
 
-if ($view === 'tables' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($view === 'tables' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'create_table') {
 	$pdo = new PDO('mysql:host=localhost;dbname=' . $db, 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 	$table_name = $_POST['table_name'];
 	$pdo->exec("CREATE TABLE `$table_name` (`created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
@@ -19,11 +19,15 @@ if ($view === 'tables' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	exit;
 }
 
+if ($view === 'tables' && $_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'drop_db') {
+	$pdo_server->exec('DROP DATABASE `' . $db . '`');
+	header('Location: ?view=dbs');
+	exit;
+}
+
 if ($view === 'columns' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 	$pdo = new PDO('mysql:host=localhost;dbname=' . $db, 'root', '', [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-	$col = $_POST['column_name'];
-	$type = $_POST['column_type'];
-	$pdo->exec("ALTER TABLE `$table` ADD `$col` $type");
+	$pdo->exec("ALTER TABLE `$table` ADD `" . $_POST['column_name'] . "` " . $_POST['column_type']);
 	header('Location: ?view=columns&db=' . $db . '&table=' . $table);
 	exit;
 }
@@ -67,7 +71,10 @@ $ignoredDBs = ['information_schema', 'mysql', 'performance_schema', 'phpmyadmin'
 		<?php endif ?>
 		<form method="POST">
 			<input type="text" name="table_name" placeholder="table name" required>
-			<button type="submit">create table</button>
+			<button type="submit" name="action" value="create_table">create table</button>
+		</form>
+		<form method="POST">
+			<button type="submit" name="action" value="drop_db">delete database</button>
 		</form>
 		<a href="?view=dbs">back</a>
 
@@ -76,10 +83,26 @@ $ignoredDBs = ['information_schema', 'mysql', 'performance_schema', 'phpmyadmin'
 		<?php $columns = $pdo->query("SHOW COLUMNS FROM `$table`")->fetchAll(PDO::FETCH_ASSOC) ?>
 		<p><?= $db ?> / <?= $table ?></p>
 		<?php if (!empty($columns)): ?>
+			<?php $rows = $pdo->query("SELECT * FROM `$table`")->fetchAll(PDO::FETCH_ASSOC) ?>
 			<table border="1" cellpadding="6">
-				<tr><?php foreach ($columns as $col): ?>
-						<th><?= $col['Field'] ?> (<?= $col['Type'] ?>)</th><?php endforeach ?>
+				<tr>
+					<?php foreach ($columns as $col): ?>
+						<th><?= $col['Field'] ?> (<?= $col['Type'] ?>)</th>
+					<?php endforeach ?>
 				</tr>
+				<?php if (empty($rows)): ?>
+					<tr>
+						<td colspan="<?= count($columns) ?>">no rows</td>
+					</tr>
+				<?php else: ?>
+					<?php foreach ($rows as $row): ?>
+						<tr>
+							<?php foreach ($row as $val): ?>
+								<td><?= $val ?></td>
+							<?php endforeach ?>
+						</tr>
+					<?php endforeach ?>
+				<?php endif ?>
 			</table>
 		<?php endif ?>
 		<form method="POST">
